@@ -57,13 +57,68 @@ void get_bt_status(char *out, int max_len) {
     }
 }
 
-// Menggambar ikon Bluetooth
+// Helper untuk menggambar garis (Bresenham)
+void tft_draw_line(int x1, int y1, int x2, int y2, uint8_t r, uint8_t g, uint8_t b) {
+    int dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
+    int dy = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
+    int err = dx + dy, e2;
+    while (1) {
+        tft_draw_pixel(x1, y1, r, g, b);
+        if (x1 == x2 && y1 == y2) break;
+        e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x1 += sx; }
+        if (e2 <= dx) { err += dx; y1 += sy; }
+    }
+}
+
+// Ambil nilai uint32 dari properti dbus
+uint32_t get_bt_uint32(const char *property) {
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd),
+        "dbus-send --system --dest=org.bluez --print-reply "
+        BT_DEVICE_PATH "/player0 "
+        "org.freedesktop.DBus.Properties.Get "
+        "string:\"org.bluez.MediaPlayer1\" string:\"%s\" 2>/dev/null "
+        "| grep uint32 | awk '{print $NF}'",
+        property);
+    FILE *fp = popen(cmd, "r");
+    uint32_t val = 0;
+    if (fp) {
+        if (fscanf(fp, "%u", &val) != 1) val = 0;
+        pclose(fp);
+    }
+    return val;
+}
+
+// Ambil nilai uint32 dari dictionary Track
+uint32_t get_bt_track_uint32(const char *field) {
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd),
+        "dbus-send --system --dest=org.bluez --print-reply "
+        BT_DEVICE_PATH "/player0 "
+        "org.freedesktop.DBus.Properties.Get "
+        "string:\"org.bluez.MediaPlayer1\" string:\"Track\" 2>/dev/null "
+        "| grep -A1 '\"%s\"' | tail -1 | grep uint32 | awk '{print $NF}'",
+        field);
+    FILE *fp = popen(cmd, "r");
+    uint32_t val = 0;
+    if (fp) {
+        if (fscanf(fp, "%u", &val) != 1) val = 0;
+        pclose(fp);
+    }
+    return val;
+}
+
+// Menggambar ikon Bluetooth yang lebih akurat
 void draw_bt_icon(int cx, int cy, uint8_t r, uint8_t g, uint8_t b) {
-    for (int i = -12; i <= 12; i++) tft_draw_rect(cx, cy + i, 2, 1, r, g, b);
-    for (int i = 0; i < 8; i++) tft_draw_rect(cx + i, cy - 12 + i, 2, 2, r, g, b);
-    for (int i = 0; i < 8; i++) tft_draw_rect(cx + i, cy + 12 - i, 2, 2, r, g, b);
-    for (int i = 0; i < 8; i++) tft_draw_rect(cx - i, cy + 4 - i, 2, 2, r, g, b);
-    for (int i = 0; i < 8; i++) tft_draw_rect(cx - i, cy - 4 + i, 2, 2, r, g, b);
+    // Bluetooth logo points scale approx +/- 12
+    tft_draw_line(cx, cy - 12, cx, cy + 12, r, g, b);
+    tft_draw_line(cx + 1, cy - 12, cx + 1, cy + 12, r, g, b); // Tebalkan
+
+    tft_draw_line(cx, cy - 12, cx + 8, cy - 6, r, g, b);
+    tft_draw_line(cx + 8, cy - 6, cx - 8, cy + 6, r, g, b);
+    tft_draw_line(cx - 8, cy - 6, cx + 8, cy + 6, r, g, b);
+    tft_draw_line(cx + 8, cy + 6, cx, cy + 12, r, g, b);
 }
 
 int main() {
@@ -95,6 +150,9 @@ int main() {
         get_bt_track_field("Title", song_title, sizeof(song_title));
         get_bt_track_field("Artist", artist, sizeof(artist));
         get_bt_status(bt_status, sizeof(bt_status));
+        
+        uint32_t position = get_bt_uint32("Position");
+        uint32_t duration = get_bt_track_uint32("Duration");
 
         // Bersihkan artis dari " . Recommended for you" jika ada
         char *rec = strstr(artist, " \xe2\x80\xa2");
@@ -170,10 +228,22 @@ int main() {
 
         // --- Progress Bar ---
         tft_draw_rect(10, 205, 220, 3, 40, 40, 60);
-        static int progress = 0;
-        progress = (progress + 1) % 220;
-        tft_draw_rect(10, 205, progress, 3, 0, 200, 255);
-        tft_draw_rect(10 + progress - 3, 202, 6, 9, 0, 220, 255);
+        int bar_width = 0;
+        if (duration > 0) {
+            bar_width = (int)((float)position / duration * 220);
+        }
+        if (bar_width > 220) bar_width = 220;
+        
+        tft_draw_rect(10, 205, bar_width, 3, 0, 200, 255);
+        tft_draw_rect(10 + bar_width - 3, 202, 6, 9, 0, 220, 255);
+
+        // --- Timer (mm:ss / mm:ss) ---
+        char time_buf[32];
+        uint32_t cur_s = position / 1000;
+        uint32_t tot_s = duration / 1000;
+        snprintf(time_buf, sizeof(time_buf), "%02u:%02u / %02u:%02u", 
+                 cur_s / 60, cur_s % 60, tot_s / 60, tot_s % 60);
+        tft_draw_string(10, 215, time_buf, 150, 150, 180, 1);
 
         // --- Footer ---
         tft_draw_string(40, 225, "FROM PHONE BT", 60, 60, 80, 1);
