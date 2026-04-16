@@ -1,0 +1,10 @@
+# Compiled binaries
+bt_tft
+tft_sim
+
+# Object files
+*.o
+
+# OS generated files
+.DS_Store
+Thumbs.db
