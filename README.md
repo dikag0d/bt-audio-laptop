@@ -3,7 +3,7 @@
 A C-based graphical simulator for a 240x240 TFT LCD that displays real-time music metadata streamed via Bluetooth from a mobile device to a Linux laptop.
 
 ## Demo
-![BT Audio Laptop Demo](assets/demo.webm)
+![BT Audio Laptop Demo](assets/demo.gif)
 
 This project uses SDL2 for rendering and interacts with BlueZ via D-Bus and `playerctl` to fetch track information (Title, Artist, and Status).
 
