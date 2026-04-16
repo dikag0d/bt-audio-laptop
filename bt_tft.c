@@ -109,6 +109,17 @@ uint32_t get_bt_track_uint32(const char *field) {
     return val;
 }
 
+// Kirim command ke Bluetooth player (Play, Pause, Next, dll)
+void send_bt_command(const char *method) {
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd),
+        "dbus-send --system --type=method_call --dest=org.bluez "
+        BT_DEVICE_PATH "/player0 "
+        "org.bluez.MediaPlayer1.%s 2>/dev/null",
+        method);
+    system(cmd);
+}
+
 // Menggambar ikon Bluetooth yang lebih akurat
 void draw_bt_icon(int cx, int cy, uint8_t r, uint8_t g, uint8_t b) {
     // Bluetooth logo points scale approx +/- 12
@@ -153,6 +164,19 @@ int main() {
         
         uint32_t position = get_bt_uint32("Position");
         uint32_t duration = get_bt_track_uint32("Duration");
+
+        // === 3. Handle Keyboard Input Control ===
+        int key = tft_get_key();
+        if (key == SDLK_SPACE) {
+            if (strcmp(bt_status, "playing") == 0) send_bt_command("Pause");
+            else send_bt_command("Play");
+        } else if (key == SDLK_RIGHT) {
+            send_bt_command("Next");
+        } else if (key == SDLK_LEFT) {
+            send_bt_command("Previous");
+        } else if (key == SDLK_s) {
+            send_bt_command("Stop");
+        }
 
         // Bersihkan artis dari " . Recommended for you" jika ada
         char *rec = strstr(artist, " \xe2\x80\xa2");
@@ -245,8 +269,34 @@ int main() {
                  cur_s / 60, cur_s % 60, tot_s / 60, tot_s % 60);
         tft_draw_string(10, 215, time_buf, 150, 150, 180, 1);
 
-        // --- Footer ---
-        tft_draw_string(40, 225, "FROM PHONE BT", 60, 60, 80, 1);
+        // --- Footer & Controls ---
+        tft_draw_string(20, 228, "FROM PHONE BT", 60, 60, 80, 1);
+
+        // Draw Control Icons at the bottom right
+        // Previous (Double triangle left)
+        tft_draw_line(160, 225, 150, 230, 200, 200, 200);
+        tft_draw_line(150, 230, 160, 235, 200, 200, 200);
+        tft_draw_line(170, 225, 160, 230, 200, 200, 200);
+        tft_draw_line(160, 230, 170, 235, 200, 200, 200);
+
+        // Play/Pause (Triangle or Bars)
+        if (strcmp(bt_status, "playing") == 0) {
+            tft_draw_rect(182, 225, 3, 10, 200, 200, 200);
+            tft_draw_rect(187, 225, 3, 10, 200, 200, 200);
+        } else {
+            tft_draw_line(182, 225, 192, 230, 200, 200, 200);
+            tft_draw_line(192, 230, 182, 235, 200, 200, 200);
+            tft_draw_line(182, 235, 182, 225, 200, 200, 200);
+        }
+
+        // Stop (Square)
+        tft_draw_rect(202, 225, 10, 10, 200, 200, 200);
+
+        // Next (Double triangle right)
+        tft_draw_line(220, 225, 230, 230, 200, 200, 200);
+        tft_draw_line(230, 230, 220, 235, 200, 200, 200);
+        tft_draw_line(230, 225, 240, 230, 200, 200, 200);
+        tft_draw_line(240, 230, 230, 235, 200, 200, 200);
 
         tft_update();
         SDL_Delay(500);

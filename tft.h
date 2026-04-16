@@ -34,5 +34,6 @@ void tft_draw_string(int x, int y, const char* str, uint8_t r, uint8_t g, uint8_
 
 // SDL event loop handler
 bool tft_process_events(void);
+int tft_get_key(void);
 
 #endif // TFT_H

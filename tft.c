@@ -5,6 +5,7 @@
 
 static SDL_Window* window = NULL;
 static SDL_Renderer* renderer = NULL;
+static int last_key = 0;
 
 // Font 5x7 sederhana (hanya karakter dasar ASCII 32-126)
 static uint8_t font5x7[] = {
@@ -185,8 +186,16 @@ void tft_update(void) {
 
 bool tft_process_events(void) {
     SDL_Event e;
+    last_key = 0;
     while (SDL_PollEvent(&e) != 0) {
         if (e.type == SDL_QUIT) return false;
+        if (e.type == SDL_KEYDOWN) {
+            last_key = e.key.keysym.sym;
+        }
     }
     return true;
+}
+
+int tft_get_key(void) {
+    return last_key;
 }
